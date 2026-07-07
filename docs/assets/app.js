@@ -60,6 +60,7 @@ const DEFAULT_INFERENCE_FILTER = "all";
 const VALID_INFERENCE_FILTERS = new Set(["all", "think", "non-think"]);
 const MOBILE_BREAKPOINT_PX = 768;
 const MODEL_HEADER_CANDIDATES = ["模型", "Model", "Language"];
+const CODE_V3_AUXILIARY_HEADERS = new Set(["unprompted", "ide/cli", "think", "总扣分"]);
 const THEME_STORAGE_KEY = "llm-dashboard-theme";
 const THEME_MODES = ["system", "light", "dark"];
 const prefersDarkQuery =
@@ -146,17 +147,6 @@ const MOBILE_CARD_LAYOUTS = {
     className: "mobile-card--codev3",
     suppressDetails: true,
     rows: [
-      {
-        className: "mobile-card-row--codev3-primary",
-        columns: 3,
-        fields: [["MacOS App(C)"], ["Flutter App(D)", "Flutter(D)"], ["Web(E)"]],
-      },
-      {
-        className: "mobile-card-row--codev3-primary",
-        columns: 3,
-        fillWithPlaceholders: true,
-        fields: [["Game(F)"], ["Rust App(G)"]],
-      },
       {
         className: "mobile-card-row--codev3-secondary",
         columns: 2,
@@ -1003,6 +993,26 @@ function normalizeCellValue(value) {
   return normalized.length ? normalized : null;
 }
 
+function normalizeHeaderKey(header) {
+  return String(header ?? "").trim().toLowerCase();
+}
+
+function isCodeV3AuxiliaryHeader(header) {
+  return CODE_V3_AUXILIARY_HEADERS.has(normalizeHeaderKey(header));
+}
+
+function getCodeV3PrimaryHeaderIndices(modelColumnIndex = -1) {
+  if (state.currentCategory !== "code_v3") return [];
+
+  return state.headers.reduce((indices, header, index) => {
+    if (index === modelColumnIndex || isCodeV3AuxiliaryHeader(header)) {
+      return indices;
+    }
+    indices.push(index);
+    return indices;
+  }, []);
+}
+
 function getCodeV3StatusClass(value) {
   if (state.currentCategory !== "code_v3") return null;
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -1191,12 +1201,60 @@ function appendStructuredPlaceholder(rowElement) {
   rowElement.appendChild(item);
 }
 
-function renderStructuredCardRows(card, row, layout, headerIndexMap, usedIndices) {
-  if (!Array.isArray(layout.rows) || !layout.rows.length) {
-    return false;
+function buildMetricFromIndex(row, index, usedIndices) {
+  const value = normalizeCellValue(row.cells[index]);
+  if (!value) return null;
+
+  usedIndices.add(index);
+  const rawHeader = state.headers[index];
+  return {
+    label: rawHeader ? getHeaderLabel(rawHeader) : t("table.mobile.unnamedField"),
+    value,
+    statusClass: getCodeV3StatusClass(value),
+  };
+}
+
+function renderCodeV3PrimaryRows(card, row, modelColumnIndex, usedIndices) {
+  const primaryIndices = getCodeV3PrimaryHeaderIndices(modelColumnIndex).filter(
+    (index) => !usedIndices.has(index) && normalizeCellValue(row.cells[index])
+  );
+
+  if (!primaryIndices.length) return false;
+
+  for (let start = 0; start < primaryIndices.length; start += 3) {
+    const chunk = primaryIndices.slice(start, start + 3);
+    const rowElement = document.createElement("div");
+    rowElement.className = "mobile-card-row mobile-card-row--codev3-primary";
+    rowElement.style.setProperty("--mobile-card-row-columns", "3");
+
+    chunk.forEach((index) => {
+      const metric = buildMetricFromIndex(row, index, usedIndices);
+      if (metric) {
+        appendStructuredMetric(rowElement, metric);
+      }
+    });
+
+    for (let index = chunk.length; index < 3; index += 1) {
+      appendStructuredPlaceholder(rowElement);
+    }
+
+    card.appendChild(rowElement);
   }
 
-  let rendered = false;
+  return true;
+}
+
+function renderStructuredCardRows(card, row, layout, headerIndexMap, usedIndices, modelColumnIndex) {
+  const hasCodeV3PrimaryRows =
+    state.currentCategory === "code_v3"
+      ? renderCodeV3PrimaryRows(card, row, modelColumnIndex, usedIndices)
+      : false;
+
+  if (!Array.isArray(layout.rows) || !layout.rows.length) {
+    return hasCodeV3PrimaryRows;
+  }
+
+  let rendered = hasCodeV3PrimaryRows;
 
   layout.rows.forEach((rowConfig) => {
     const fields = Array.isArray(rowConfig?.fields) ? rowConfig.fields : [];
@@ -1273,7 +1331,14 @@ function createMobileCard(row, layout, headerIndexMap, modelColumnIndex) {
 
   card.appendChild(header);
 
-  const hasStructuredRows = renderStructuredCardRows(card, row, layout, headerIndexMap, usedIndices);
+  const hasStructuredRows = renderStructuredCardRows(
+    card,
+    row,
+    layout,
+    headerIndexMap,
+    usedIndices,
+    modelColumnIndex
+  );
 
   if (!hasStructuredRows) {
     const metrics = [];
@@ -1364,6 +1429,7 @@ function renderTable() {
   const container = elements.tableContainer;
   container.innerHTML = "";
   container.classList.remove("mobile-cards");
+  container.classList.remove("table-container--codev3");
 
   if (!state.headers.length) {
     showPlaceholder(t("placeholders.selectDataset"));
@@ -1383,14 +1449,22 @@ function renderTable() {
 
   const headerIndexMap = buildHeaderIndexMap(state.headers);
   const modelColumnIndex = findModelColumnIndex(state.headers, state.filteredRows, headerIndexMap);
+  const isCodeV3Table = state.currentCategory === "code_v3";
 
   const table = document.createElement("table");
+  if (isCodeV3Table) {
+    table.classList.add("codev3-table");
+    container.classList.add("table-container--codev3");
+  }
   const thead = document.createElement("thead");
   const headerRow = document.createElement("tr");
 
   state.headers.forEach((header, index) => {
     const th = document.createElement("th");
     th.textContent = getHeaderLabel(header);
+    if (isCodeV3Table) {
+      th.classList.add(index === modelColumnIndex ? "codev3-model-column" : "codev3-fixed-column");
+    }
     th.addEventListener("click", () => toggleSort(index));
 
     const isActive = state.sort.columnIndex === index;
@@ -1415,6 +1489,11 @@ function renderTable() {
     const tr = document.createElement("tr");
     row.cells.forEach((cell, columnIndex) => {
       const td = document.createElement("td");
+      if (isCodeV3Table) {
+        td.classList.add(
+          columnIndex === modelColumnIndex ? "codev3-model-column" : "codev3-fixed-column"
+        );
+      }
       const displayValue = cell || "—";
       const statusClass = getCodeV3StatusClass(cell);
       if (statusClass) {
@@ -1498,6 +1577,7 @@ function updateMeta(dataset = null) {
 function showPlaceholder(message) {
   const container = elements.tableContainer;
   container.classList.remove("mobile-cards");
+  container.classList.remove("table-container--codev3");
   container.innerHTML = `<div class="placeholder" role="status">${message}</div>`;
 }
 

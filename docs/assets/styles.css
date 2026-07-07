@@ -291,9 +291,21 @@ main {
   overflow: hidden;
 }
 
+.table-container--codev3 {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 .table-container table {
   width: 100%;
   border-collapse: collapse;
+}
+
+.table-container--codev3 table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: fixed;
 }
 
 .table-container thead {
@@ -329,6 +341,47 @@ main {
 
 .table-container tbody tr:hover {
   background-color: var(--color-row-hover);
+}
+
+.table-container--codev3 th,
+.table-container--codev3 td {
+  white-space: nowrap;
+}
+
+.table-container--codev3 .codev3-model-column {
+  position: sticky;
+  left: 0;
+  min-width: 250px;
+  width: 250px;
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 1px 0 0 var(--color-border), 12px 0 16px -16px rgba(15, 23, 42, 0.35);
+}
+
+.table-container--codev3 thead .codev3-model-column {
+  z-index: 4;
+  background: var(--color-table-head);
+}
+
+.table-container--codev3 tbody .codev3-model-column {
+  z-index: 2;
+  background: var(--color-panel);
+}
+
+.table-container--codev3 tbody tr:nth-child(even) .codev3-model-column {
+  background-color: var(--color-row-even);
+}
+
+.table-container--codev3 tbody tr:hover .codev3-model-column {
+  background-color: var(--color-row-hover);
+}
+
+.table-container--codev3 .codev3-fixed-column {
+  min-width: 130px;
+  width: 130px;
+  max-width: 130px;
 }
 
 .table-container td.think-model {
