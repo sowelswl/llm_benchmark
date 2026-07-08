@@ -55,6 +55,30 @@ const TRANSLATIONS = {
     "zh-CN": "仅非推理模型",
     "en-US": "Non-reasoning models only",
   },
+  "controls.country.label": {
+    "zh-CN": "模型国家",
+    "en-US": "Model country",
+  },
+  "controls.country.aria": {
+    "zh-CN": "筛选模型国家",
+    "en-US": "Filter model country",
+  },
+  "controls.country.option.all": {
+    "zh-CN": "全部模型",
+    "en-US": "All models",
+  },
+  "controls.country.option.china": {
+    "zh-CN": "中国模型",
+    "en-US": "Chinese models",
+  },
+  "controls.country.option.usa": {
+    "zh-CN": "美国模型",
+    "en-US": "US models",
+  },
+  "controls.country.option.other": {
+    "zh-CN": "其他模型",
+    "en-US": "Other models",
+  },
   "controls.search.label": {
     "zh-CN": "搜索",
     "en-US": "Search",

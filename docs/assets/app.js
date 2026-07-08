@@ -58,8 +58,19 @@ const HEADER_TRANSLATIONS = {
 const CATEGORY_ORDER = ["logic", "code", "code_v3", "vision"];
 const DEFAULT_INFERENCE_FILTER = "all";
 const VALID_INFERENCE_FILTERS = new Set(["all", "think", "non-think"]);
+const DEFAULT_COUNTRY_FILTER = "all";
+const VALID_COUNTRY_FILTERS = new Set(["all", "china", "usa", "other"]);
 const MOBILE_BREAKPOINT_PX = 768;
 const MODEL_HEADER_CANDIDATES = ["模型", "Model", "Language"];
+const MODEL_COUNTRY_HEADER_CANDIDATES = ["模型", "Model"];
+const CHINA_MODEL_PATTERNS = [
+  /[\u4e00-\u9fff]/,
+  /^k2(?:\b|[.\s-])/i,
+  /\b(?:baichuan|chatglm|deepseek|doubao|ernie|erine|glm|hunyuan|kat|kimi|ling|longcat|minimax|mimo|openpangu|pangu|qwen|qwn|qvq|qwq|ring|seed|sensenova|step|tencent|yi)(?=$|[^a-z0-9]|[0-9])/i,
+];
+const US_MODEL_PATTERNS = [
+  /\b(?:anthropic|chatgpt|claude|fable|gemini|gemm3|gemma|gpt|grok|haiku|llama|o1|o3|o4|openai|opus|sonnet)(?=$|[^a-z0-9]|[0-9])/i,
+];
 const CODE_V3_AUXILIARY_HEADERS = new Set(["unprompted", "ide/cli", "think", "总扣分"]);
 const THEME_STORAGE_KEY = "llm-dashboard-theme";
 const THEME_MODES = ["system", "light", "dark"];
@@ -179,6 +190,8 @@ const state = {
   searchQuery: "",
   inferenceFilter: DEFAULT_INFERENCE_FILTER,
   hasThinkColumn: false,
+  countryFilter: DEFAULT_COUNTRY_FILTER,
+  hasModelColumn: false,
   sort: { columnIndex: null, direction: null },
   themeMode: readStoredThemeMode(),
 };
@@ -189,12 +202,14 @@ const elements = {
   categorySelect: document.getElementById("categorySelect"),
   datasetSelect: document.getElementById("datasetSelect"),
   inferenceFilter: document.getElementById("inferenceFilter"),
+  countryFilter: document.getElementById("countryFilter"),
   searchInput: document.getElementById("searchInput"),
   tableContainer: document.getElementById("tableContainer"),
   datasetMeta: document.getElementById("datasetMeta"),
   categoryLabel: document.getElementById("categoryLabel"),
   datasetLabel: document.getElementById("datasetLabel"),
   inferenceLabel: document.getElementById("inferenceLabel"),
+  countryLabel: document.getElementById("countryLabel"),
   searchLabel: document.getElementById("searchLabel"),
   pageTitle: document.getElementById("pageTitle"),
   pageSubtitle: document.getElementById("pageSubtitle"),
@@ -295,6 +310,9 @@ function updateStaticCopy() {
   if (elements.inferenceLabel) {
     elements.inferenceLabel.textContent = t("controls.inference.label");
   }
+  if (elements.countryLabel) {
+    elements.countryLabel.textContent = t("controls.country.label");
+  }
   if (elements.searchLabel) {
     elements.searchLabel.textContent = t("controls.search.label");
   }
@@ -314,6 +332,19 @@ function updateStaticCopy() {
         { value: "non-think", label: t("controls.inference.option.nonThink") },
       ],
       state.inferenceFilter
+    );
+  }
+  if (elements.countryFilter) {
+    elements.countryFilter.setAttribute("aria-label", t("controls.country.aria"));
+    setSelectOptions(
+      elements.countryFilter,
+      [
+        { value: "all", label: t("controls.country.option.all") },
+        { value: "china", label: t("controls.country.option.china") },
+        { value: "usa", label: t("controls.country.option.usa") },
+        { value: "other", label: t("controls.country.option.other") },
+      ],
+      state.countryFilter
     );
   }
   if (elements.searchInput) {
@@ -419,6 +450,10 @@ function normalizeInferenceFilter(value) {
   return VALID_INFERENCE_FILTERS.has(value) ? value : DEFAULT_INFERENCE_FILTER;
 }
 
+function normalizeCountryFilter(value) {
+  return VALID_COUNTRY_FILTERS.has(value) ? value : DEFAULT_COUNTRY_FILTER;
+}
+
 function parseHashState(rawHash = window.location.hash) {
   const hash = String(rawHash || "").replace(/^#/, "");
   const params = new URLSearchParams(hash);
@@ -428,6 +463,7 @@ function parseHashState(rawHash = window.location.hash) {
     category: (params.get("category") || "").trim(),
     datasetKey: (params.get("dataset") || "").trim(),
     inferenceFilter: normalizeInferenceFilter((params.get("inference") || "").trim()),
+    countryFilter: normalizeCountryFilter((params.get("country") || "").trim()),
     searchQuery: (params.get("search") || "").trim(),
   };
 }
@@ -460,6 +496,9 @@ function buildHashFromState() {
   }
   if (state.inferenceFilter && state.inferenceFilter !== DEFAULT_INFERENCE_FILTER) {
     params.set("inference", state.inferenceFilter);
+  }
+  if (state.countryFilter && state.countryFilter !== DEFAULT_COUNTRY_FILTER) {
+    params.set("country", state.countryFilter);
   }
   if (state.searchQuery) {
     params.set("search", state.searchQuery);
@@ -513,6 +552,12 @@ async function applyStateFromHash(rawHash = window.location.hash) {
       : DEFAULT_INFERENCE_FILTER;
     state.inferenceFilter = nextInference;
     elements.inferenceFilter.value = nextInference;
+
+    const nextCountry = state.hasModelColumn
+      ? normalizeCountryFilter(hashState.countryFilter)
+      : DEFAULT_COUNTRY_FILTER;
+    state.countryFilter = nextCountry;
+    elements.countryFilter.value = nextCountry;
 
     const nextSearch = hashState.searchQuery;
     state.searchQuery = nextSearch;
@@ -626,6 +671,12 @@ function bindEventHandlers() {
     syncHashFromState();
   });
 
+  elements.countryFilter.addEventListener("change", (event) => {
+    state.countryFilter = normalizeCountryFilter(event.target.value);
+    applyFiltersAndRender();
+    syncHashFromState();
+  });
+
   elements.searchInput.addEventListener("input", (event) => {
     state.searchQuery = (event.target.value || "").trim();
     applyFiltersAndRender();
@@ -673,8 +724,12 @@ async function handleCategoryChange(category, options = {}) {
   state.searchQuery = "";
   state.inferenceFilter = DEFAULT_INFERENCE_FILTER;
   state.hasThinkColumn = false;
+  state.countryFilter = DEFAULT_COUNTRY_FILTER;
+  state.hasModelColumn = false;
   elements.inferenceFilter.value = DEFAULT_INFERENCE_FILTER;
   elements.inferenceFilter.disabled = true;
+  elements.countryFilter.value = DEFAULT_COUNTRY_FILTER;
+  elements.countryFilter.disabled = true;
   state.sort = { columnIndex: null, direction: null };
   state.headers = [];
   state.rows = [];
@@ -792,15 +847,28 @@ async function loadDatasetByKey(key) {
 
   const displayHeaders =
     thinkIndex === -1 ? headers.slice() : headers.filter((_, index) => index !== thinkIndex);
+  const modelColumnIndex = findCountryModelColumnIndex(displayHeaders);
+  state.hasModelColumn = modelColumnIndex !== -1;
+
+  if (state.hasModelColumn) {
+    elements.countryFilter.disabled = false;
+    elements.countryFilter.value = state.countryFilter;
+  } else {
+    state.countryFilter = DEFAULT_COUNTRY_FILTER;
+    elements.countryFilter.value = DEFAULT_COUNTRY_FILTER;
+    elements.countryFilter.disabled = true;
+  }
 
   state.headers = displayHeaders;
   state.rows = rows.map((row) => {
     const cells =
       thinkIndex === -1 ? row.slice() : row.filter((_, index) => index !== thinkIndex);
     const thinkValue = thinkIndex === -1 ? null : row[thinkIndex];
+    const modelName = modelColumnIndex === -1 ? "" : cells[modelColumnIndex];
     return {
       cells,
       isThink: thinkIndex !== -1 && isThinkRow(thinkValue),
+      modelCountry: classifyModelCountry(modelName),
     };
   });
 
@@ -822,6 +890,24 @@ function getDatasetDirectoryFromPath(path) {
     return segments[1];
   }
   return "default";
+}
+
+function findCountryModelColumnIndex(headers) {
+  return MODEL_COUNTRY_HEADER_CANDIDATES.reduce((foundIndex, candidate) => {
+    if (foundIndex !== -1) return foundIndex;
+    return headers.findIndex((header) => header === candidate);
+  }, -1);
+}
+
+function classifyModelCountry(modelName) {
+  const normalizedName = String(modelName || "").trim();
+  if (CHINA_MODEL_PATTERNS.some((pattern) => pattern.test(normalizedName))) {
+    return "china";
+  }
+  if (US_MODEL_PATTERNS.some((pattern) => pattern.test(normalizedName))) {
+    return "usa";
+  }
+  return "other";
 }
 
 async function fetchCsvDataset(path) {
@@ -897,6 +983,10 @@ function applyFiltersAndRender() {
     } else if (state.inferenceFilter === "non-think") {
       rows = rows.filter((row) => !row.isThink);
     }
+  }
+
+  if (state.hasModelColumn && state.countryFilter !== DEFAULT_COUNTRY_FILTER) {
+    rows = rows.filter((row) => row.modelCountry === state.countryFilter);
   }
 
   if (query) {
