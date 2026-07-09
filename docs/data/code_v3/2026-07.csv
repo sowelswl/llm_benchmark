@@ -2,9 +2,10 @@
 "Fable-5 (high)","Pass","Pass","Pass","Pass","Pending","2/A+","Pending","1","Claude Code","1"
 "GPT-5.5 (high)","7/A","6/A","2/A","12/A","47/C","Pending","Pending","1","Codex App","1"
 "Claude Opus 4.8 (high)","Pass","Pass","10/B+","7/A","20/B","10/B","Pending","2","Claude Code","1"
-"GLM-5.2(max)","16/B+","6/A","8/A","8/A","43/C","14/B","15/C+",0,"Claude Code",1
+"Grok 4.5 (high)","12/B+","Skip","7/A","Pending","Pending","16/B","7/B+","1","Grok Build","1"
+"GLM-5.2(max)","16/B","6/A","8/A","8/A","43/C","14/B","15/C+",0,"Claude Code",1
 "Claude Opus 4.6","9/A","11/A","12/B+","15/B","66/C","Skip","Skip","4","Claude Code","0"
-"Claude Sonnet 5 (high)","Pass","Pass","18/B","14/B+","Pending","22/C","16/C+","0","Claude Code","1"
+"Claude Sonnet 5 (high)","Pass","Pass","18/B","14/B+","Pending","22/C","16/C+","1","Claude Code","1"
 "Tencent Hy3 (high)","11/B","12/B","12/B","13/B","Pending","10/B","20/C+",0,"Claude Code",1
 "Gemini 3.5 Flash (high)","21/C","15/B","20/C","17/B","Skip","Skip","Pending","3","Gemini CLI","1"
 "DeepSeek V4 Pro (max)","16/C","8/B","21/C","36/C","Failed(0/9)","31/C","Pending","0","Claude Code","1"
